@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/ericvolp12/go_home/internal/lights"
-	"github.com/ericvolp12/go_home/internal/outlets"
+	"github.com/ericvolp12/gohome/internal/lights"
+	"github.com/ericvolp12/gohome/internal/outlets"
 	"github.com/gin-gonic/gin"
 )
 
