@@ -10,6 +10,12 @@ RUN make test
 
 RUN make gohome
 
+FROM debian:buster-slim AS run
+
+RUN mkdir -p /opt
+
+COPY --from=build /opt/gohome/gohome /opt/gohome
+
 EXPOSE 8053
 
-ENTRYPOINT [ "/opt/gohome/gohome" ]
+ENTRYPOINT [ "/opt/gohome" ]
