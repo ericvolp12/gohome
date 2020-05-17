@@ -44,6 +44,11 @@ func main() {
 		log.Panic("failed to initialize Wemo connections: ", err)
 	}
 
+	log.Printf("Wemo initialized with %v device(s): \n", len(wemo.Devices))
+	for _, device := range wemo.Devices {
+		log.Printf("\tDevice: (%+v)\n", device.Host)
+	}
+
 	app := Application{Hue: hue, Wemo: wemo, APIKey: apiKey}
 
 	r := gin.Default()

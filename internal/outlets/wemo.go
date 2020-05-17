@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -41,13 +40,10 @@ func NewWemo(ctx context.Context) (*Wemo, error) {
 
 		for _, response := range responses {
 			if strings.Contains(response.USN, urn) {
-				log.Printf("Identified device at (%+v) named (%+v)\n", response.Location, response.USN)
 				devices = append(devices, &Device{response.Location.Hostname() + ":" + response.Location.Port()})
 			}
 		}
 	}
-
-	fmt.Printf("Found %v devices\n", len(devices))
 
 	return &Wemo{Devices: devices}, nil
 }
@@ -84,8 +80,6 @@ func (w *Wemo) TurnOnEverything(ctx context.Context) []error {
 func (d *Device) SetState(ctx context.Context, state bool) error {
 	url := fmt.Sprintf("http://%v/upnp/control/basicevent1", d.Host)
 
-	log.Println(url)
-
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader([]byte(newSetBinaryStateMessage(state))))
 	if err != nil {
 		return errors.WithMessage(err, "failed to initialize request")
@@ -98,8 +92,6 @@ func (d *Device) SetState(ctx context.Context, state bool) error {
 
 	req.Header.Add("charset", "utf8")
 
-	log.Printf("%+v\n", req.URL)
-
 	client := &http.Client{}
 
 	resp, err := client.Do(req)
@@ -108,7 +100,7 @@ func (d *Device) SetState(ctx context.Context, state bool) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		body := []byte{}
+		var body []byte
 		_, err := resp.Body.Read(body)
 		if err != nil {
 			return errors.WithMessage(err, "failed to read response body")
@@ -126,12 +118,14 @@ func newSetBinaryStateMessage(on bool) string {
 		value = 1
 	}
 
-	return fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
-						<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-							<s:Body>
-								<u:SetBinaryState xmlns:u="urn:Belkin:service:basicevent:1">
-									<BinaryState>%v</BinaryState>
-								</u:SetBinaryState>
-							</s:Body>
-						</s:Envelope>`, value)
+	return fmt.Sprintf(
+		`<?xml version="1.0" encoding="utf-8"?>
+        <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+            <s:Body>
+                <u:SetBinaryState xmlns:u="urn:Belkin:service:basicevent:1">
+                    <BinaryState>%v</BinaryState>
+                </u:SetBinaryState>
+            </s:Body>
+        </s:Envelope>`,
+		value)
 }
