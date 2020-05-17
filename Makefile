@@ -21,4 +21,4 @@ build-gohome-image:
 .PHONY: run-gohome
 run-gohome:
 	docker rm gohome; true
-	docker run -d --name gohome -p 8080:8080 ericvolp12/gohome
+	docker run -d --name gohome -p 8053:8080 --env-file ./env.list ericvolp12/gohome
