@@ -21,4 +21,4 @@ build-gohome-image:
 .PHONY: run-gohome
 run-gohome:
 	docker rm -f gohome; true
-	docker run -d --name gohome --network host --env-file ./env.list ericvolp12/gohome
+	docker run -d --restart=always --name gohome --network host --env-file ./env.list ericvolp12/gohome
