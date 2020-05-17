@@ -10,6 +10,6 @@ RUN make test
 
 RUN make gohome
 
-EXPOSE 8080
+EXPOSE 8053
 
 ENTRYPOINT [ "/opt/gohome/gohome" ]
