@@ -8,14 +8,12 @@ WORKDIR /opt/gohome
 
 RUN make test
 
-RUN make gohome
+RUN make gohome-static
 
-FROM debian:buster-slim AS run
+FROM scratch AS run
 
-RUN mkdir -p /opt
-
-COPY --from=build /opt/gohome/gohome /opt/gohome
+COPY --from=build /opt/gohome/gohome-static /gohome-static
 
 EXPOSE 8053
 
-ENTRYPOINT [ "/opt/gohome" ]
+ENTRYPOINT [ "/gohome-static" ]

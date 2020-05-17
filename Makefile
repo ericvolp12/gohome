@@ -7,6 +7,9 @@ all: $(binaries)
 gohome: cmd/gohome/main.go
 	go build -o $@ $<
 
+gohome-static: cmd/gohome/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $@ $<
+
 clean:
 	rm -f $(binaries)
 
