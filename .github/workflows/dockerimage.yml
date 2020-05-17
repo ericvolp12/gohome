@@ -1,0 +1,22 @@
+name: Docker Image CI
+
+on:
+    release:
+        types: [published]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build the tagged Docker image
+      run: docker build . --file build/gohome.Dockerfile --tag ericvolp12/gohome:${{steps.vars.outputs.tag}}
+    - name: Publish to Registry
+      uses: elgohr/Publish-Docker-Github-Action@master
+      with:
+        name: ericvolp12/gohome
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
