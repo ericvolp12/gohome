@@ -12,6 +12,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Get the version
+      id: vars
+      run: echo ::set-output name=tag::$(echo ${GITHUB_REF:6})
     - name: Build the tagged Docker image
       run: docker build . --file build/gohome.Dockerfile --tag ericvolp12/gohome:${{steps.vars.outputs.tag}}
     - name: Publish to Registry
