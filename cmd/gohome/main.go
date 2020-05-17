@@ -11,6 +11,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Application stores the mid-level interfaces for go_home
+type Application struct {
+	Hue    *lights.Hue
+	Wemo   *outlets.Wemo
+	APIKey string
+}
+
+// Request is a valid POST request to this API
+type Request struct {
+	APIKey string `json:"apiKey"`
+}
+
 func main() {
 	fmt.Println("Go HOME")
 
@@ -19,6 +31,8 @@ func main() {
 	hueGatewayIP := os.Getenv("HUE_GATEWAY_IP")
 
 	hueUsername := os.Getenv("HUE_USERNAME")
+
+	apiKey := os.Getenv("GOHOME_API_KEY")
 
 	hue, err := lights.NewHue(ctx, hueGatewayIP, hueUsername)
 	if err != nil {
@@ -30,44 +44,101 @@ func main() {
 		log.Panic("failed to initialize Wemo connections: ", err)
 	}
 
+	app := Application{Hue: hue, Wemo: wemo, APIKey: apiKey}
+
 	r := gin.Default()
-	r.GET("/on", func(c *gin.Context) {
-		errors := hue.TurnOnEverything(c.Request.Context())
-		if len(errors) != 0 {
-			c.JSON(500, gin.H{
-				"errors": errors,
-			})
 
-			return
-		}
-		c.JSON(200, gin.H{
-			"message": "all lights turned on successfully",
-		})
-	})
+	r.POST("/on", app.OnHandler)
 
-	r.GET("/off", func(c *gin.Context) {
-		errors := hue.TurnOffEverything(c.Request.Context())
-		if len(errors) != 0 {
-			c.JSON(500, gin.H{
-				"errors": errors,
-			})
-
-			return
-		}
-
-		errors = wemo.TurnOffEverything(ctx)
-		if len(errors) != 0 {
-			c.JSON(500, gin.H{
-				"errors": errors,
-			})
-
-			return
-		}
-
-		c.JSON(200, gin.H{
-			"message": "all lights turned off successfully",
-		})
-	})
+	r.POST("/off", app.OffHandler)
 
 	r.Run() // listen and serve on 0.0.0.0:8080
+}
+
+// OnHandler handles turning things on
+func (app *Application) OnHandler(c *gin.Context) {
+	var req Request
+
+	err := c.BindJSON(&req)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"errors": "bad request, missing API key",
+		})
+		return
+	}
+
+	if req.APIKey != app.APIKey {
+		c.JSON(401, gin.H{
+			"errors": "invalid API key",
+		})
+		return
+	}
+
+	errors := app.Hue.TurnOnEverything(c.Request.Context())
+	if len(errors) != 0 {
+		c.JSON(500, gin.H{
+			"errors": errors,
+		})
+
+		return
+	}
+
+	errors = app.Wemo.TurnOnEverything(c.Request.Context())
+	log.Printf("%+v", errors)
+
+	if len(errors) != 0 {
+		c.JSON(500, gin.H{
+			"errors": errors,
+		})
+
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "all lights turned on successfully",
+	})
+}
+
+// OffHandler handles turning things off
+func (app *Application) OffHandler(c *gin.Context) {
+	var req Request
+
+	err := c.BindJSON(&req)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"errors": "bad request, missing API key",
+		})
+		return
+	}
+
+	if req.APIKey != app.APIKey {
+		c.JSON(401, gin.H{
+			"errors": "invalid API key",
+		})
+		return
+	}
+
+	errors := app.Hue.TurnOffEverything(c.Request.Context())
+	if len(errors) != 0 {
+		c.JSON(500, gin.H{
+			"errors": errors,
+		})
+
+		return
+	}
+
+	errors = app.Wemo.TurnOffEverything(c.Request.Context())
+	log.Printf("%+v", errors)
+
+	if len(errors) != 0 {
+		c.JSON(500, gin.H{
+			"errors": errors,
+		})
+
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "all lights turned off successfully",
+	})
 }
