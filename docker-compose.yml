@@ -8,7 +8,7 @@ services:
         - "18083:18083"
         - "8083:8083"
     gohome:
-        image: ericvolp12/gohome:latest
+        image: ericvolp12/gohome:v0.1.0
         ports:
         - "8053:8053"
         network_mode: host
