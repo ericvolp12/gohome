@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/ericvolp12/gohome/internal/lights"
 	"github.com/ericvolp12/gohome/internal/outlets"
@@ -16,7 +15,7 @@ import (
 type Application struct {
 	Hue     *lights.Hue
 	Wemo    *outlets.Wemo
-	Tasmota *outlets.Tasmota
+	Tasmota *outlets.TasmotaMQTT
 	APIKey  string
 }
 
@@ -33,14 +32,14 @@ func main() {
 	hueGatewayIP := os.Getenv("HUE_GATEWAY_IP")
 	hueUsername := os.Getenv("HUE_USERNAME")
 	apiKey := os.Getenv("GOHOME_API_KEY")
-
-	tasmotaHosts := strings.Split(strings.ReplaceAll(os.Getenv("TASMOTA_HOSTS"), "\"", ""), ",")
-	tasmotaNames := strings.Split(strings.ReplaceAll(os.Getenv("TASMOTA_NAMES"), "\"", ""), ",")
+	mqttServer := "tcp://" + os.Getenv("GOHOME_MQTT_SERVER")
+	mqttTopic := os.Getenv("GOHOME_MQTT_TOPIC")
 
 	hue, err := lights.NewHue(ctx, hueGatewayIP, hueUsername)
 	if err != nil {
 		log.Panic("failed to initialize HUE bridge: ", err)
 	}
+	log.Printf("Hue Initialized successfully")
 
 	wemo, err := outlets.NewWemo(ctx)
 	if err != nil {
@@ -52,10 +51,11 @@ func main() {
 		log.Printf("\tDevice: (%+v)\n", device.Host)
 	}
 
-	tasmota, err := outlets.NewTasmota(ctx, tasmotaHosts, tasmotaNames)
+	tasmota, err := outlets.NewTasmotaMQTT(ctx, mqttServer, mqttTopic)
 	if err != nil {
-		log.Panic("failed to initialize Tasmota: ", err)
+		log.Panic("failed to initialize TasmotaMQTT: ", err)
 	}
+	log.Printf("TasmotaMQTT Initialized successfully")
 
 	app := Application{Hue: hue, Wemo: wemo, APIKey: apiKey, Tasmota: tasmota}
 
@@ -106,11 +106,11 @@ func (app *Application) OnHandler(c *gin.Context) {
 		return
 	}
 
-	errors = app.Tasmota.TurnOnEverything(c.Request.Context())
-	if len(errors) != 0 {
-		log.Printf("%+v", errors)
+	err = app.Tasmota.TurnOnEverything(c.Request.Context())
+	if err != nil {
+		log.Printf("%+v", err)
 		c.JSON(500, gin.H{
-			"errors": errors,
+			"error": err,
 		})
 
 		return
@@ -159,12 +159,11 @@ func (app *Application) OffHandler(c *gin.Context) {
 		return
 	}
 
-	errors = app.Tasmota.TurnOffEverything(c.Request.Context())
-	if len(errors) != 0 {
-		log.Printf("%+v", errors)
-
+	err = app.Tasmota.TurnOffEverything(c.Request.Context())
+	if err != nil {
+		log.Printf("%+v", err)
 		c.JSON(500, gin.H{
-			"errors": errors,
+			"error": err,
 		})
 
 		return

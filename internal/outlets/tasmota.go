@@ -2,69 +2,67 @@ package outlets
 
 import (
 	"context"
-	"fmt"
-	"net/http"
+	"crypto/tls"
+	"strconv"
+	"time"
 
+	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/pkg/errors"
 )
 
-// TasmotaDevice contains information about a single Tasmota hardware device
-type TasmotaDevice struct {
-	Host string
-	Name string
+// TasmotaMQTT is a struct for a TasmotaMQTT client
+type TasmotaMQTT struct {
+	Client MQTT.Client
+	Topic  string
 }
 
-// Tasmota contains an instance of the Tasmota devices on the network
-type Tasmota struct {
-	Devices []*TasmotaDevice
+// NewTasmotaMQTT is a factory for a TasmotaMQTT client
+func NewTasmotaMQTT(ctx context.Context, server, topic string) (*TasmotaMQTT, error) {
+	client, err := acquireMQTTClient(ctx, server)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to acquire TasmotaMQTT client")
+	}
+	return &TasmotaMQTT{Client: client, Topic: topic}, nil
 }
 
-// NewTasmota is a factory for a Tasmota interface
-func NewTasmota(ctx context.Context, hosts []string, names []string) (*Tasmota, error) {
-	devices := []*TasmotaDevice{}
-	for i, host := range hosts {
-		if len(names)-1 >= i {
-			devices = append(devices, &TasmotaDevice{Host: host, Name: names[i]})
+func acquireMQTTClient(ctx context.Context, server string) (MQTT.Client, error) {
+	clientid := "gohome_" + strconv.Itoa(time.Now().Second())
+
+	connOpts := MQTT.NewClientOptions().AddBroker(server).SetClientID(clientid).SetCleanSession(true)
+
+	tlsConfig := &tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert}
+	connOpts.SetTLSConfig(tlsConfig)
+
+	client := MQTT.NewClient(connOpts)
+
+	attempts := 1
+	var err error
+
+	for attempts < 10 {
+		if token := client.Connect(); token.Wait() && token.Error() != nil {
+			err = token.Error()
+		} else {
+			return client, nil
 		}
+		time.Sleep(time.Second * time.Duration(attempts))
+		attempts++
 	}
 
-	return &Tasmota{Devices: devices}, nil
+	return nil, errors.WithMessage(err, "failed to initialize MQTT client")
 }
 
 // TurnOnEverything turns on all devices the Tasmota knows about
-func (t *Tasmota) TurnOnEverything(ctx context.Context) []error {
-	var errs []error
-
-	for _, device := range t.Devices {
-		url := fmt.Sprintf("http://%v/cm?cmnd=Power%%20On", device.Host)
-		resp, err := http.Get(url)
-		if err != nil {
-			errs = append(errs, errors.WithMessage(err, fmt.Sprintf("failed to turn on device (%v)", device.Name)))
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			errs = append(errs, fmt.Errorf("failed to turn on device (%v), status: (%v)", device.Name, resp.StatusCode))
-		}
+func (t *TasmotaMQTT) TurnOnEverything(ctx context.Context) error {
+	if token := t.Client.Publish(t.Topic, 0, false, "on"); token.Wait() && token.Error() != nil {
+		return errors.WithMessage(token.Error(), "failed to send power on MQTT message")
 	}
-
-	return errs
+	return nil
 }
 
 // TurnOffEverything turns off all devices the Tasmota knows about
-func (t *Tasmota) TurnOffEverything(ctx context.Context) []error {
-	var errs []error
-
-	for _, device := range t.Devices {
-		url := fmt.Sprintf("http://%v/cm?cmnd=Power%%20Off", device.Host)
-		resp, err := http.Get(url)
-		if err != nil {
-			errs = append(errs, errors.WithMessage(err, fmt.Sprintf("failed to turn off device (%v)", device.Name)))
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			errs = append(errs, fmt.Errorf("failed to turn off device (%v), status: (%v)", device.Name, resp.StatusCode))
-		}
+func (t *TasmotaMQTT) TurnOffEverything(ctx context.Context) error {
+	if token := t.Client.Publish(t.Topic, 0, false, "off"); token.Wait() && token.Error() != nil {
+		return errors.WithMessage(token.Error(), "failed to send power off MQTT message")
 	}
-
-	return errs
+	return nil
 }

@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+    mqtt:
+        image: emqx/emqx:latest
+        restart: always
+        ports:
+        - "1883:1883"
+        - "18083:18083"
+        - "8083:8083"
+    gohome:
+        image: ericvolp12/gohome:latest
+        ports:
+        - "8053:8053"
+        network_mode: host
+        env_file: env.list
+        restart: always
+        depends_on:
+        - mqtt
