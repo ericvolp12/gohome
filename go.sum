@@ -1,3 +1,4 @@
+github.com/TuyaInc/tuya_cloud_sdk_go v0.0.0-20200116062652-647d4fe27cee h1:m20dNGUlsN1+G+7EbqRLjTciuTRJ0j7fmid+ffIns9E=
 github.com/amimof/huego v0.0.0-20200504200310-b4a8f71aa2e3 h1:z1SeDFhwHuKK6CoDZgxpU8Gqyy5IWWLWUKOLs7+00iI=
 github.com/amimof/huego v0.0.0-20200504200310-b4a8f71aa2e3/go.mod h1:z1Sy7Rrdzmb+XsGHVEhODrRJRDq4RCFW7trCI5cKmeA=
 github.com/bcurren/go-ssdp v0.0.0-20130927201504-ae8e7a0ef8a8 h1:a5CrzovDwGx3NE8+FXDkx7vyBo0EWeQ/JOKP1Q8VD6I=

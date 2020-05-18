@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/ericvolp12/gohome/internal/lights"
 	"github.com/ericvolp12/gohome/internal/outlets"
@@ -13,9 +14,10 @@ import (
 
 // Application stores the mid-level interfaces for go_home
 type Application struct {
-	Hue    *lights.Hue
-	Wemo   *outlets.Wemo
-	APIKey string
+	Hue     *lights.Hue
+	Wemo    *outlets.Wemo
+	Tasmota *outlets.Tasmota
+	APIKey  string
 }
 
 // Request is a valid POST request to this API
@@ -29,10 +31,11 @@ func main() {
 	ctx := context.Background()
 
 	hueGatewayIP := os.Getenv("HUE_GATEWAY_IP")
-
 	hueUsername := os.Getenv("HUE_USERNAME")
-
 	apiKey := os.Getenv("GOHOME_API_KEY")
+
+	tasmotaHosts := strings.Split(strings.ReplaceAll(os.Getenv("TASMOTA_HOSTS"), "\"", ""), ",")
+	tasmotaNames := strings.Split(strings.ReplaceAll(os.Getenv("TASMOTA_NAMES"), "\"", ""), ",")
 
 	hue, err := lights.NewHue(ctx, hueGatewayIP, hueUsername)
 	if err != nil {
@@ -49,7 +52,12 @@ func main() {
 		log.Printf("\tDevice: (%+v)\n", device.Host)
 	}
 
-	app := Application{Hue: hue, Wemo: wemo, APIKey: apiKey}
+	tasmota, err := outlets.NewTasmota(ctx, tasmotaHosts, tasmotaNames)
+	if err != nil {
+		log.Panic("failed to initialize Tasmota: ", err)
+	}
+
+	app := Application{Hue: hue, Wemo: wemo, APIKey: apiKey, Tasmota: tasmota}
 
 	r := gin.Default()
 
@@ -89,9 +97,18 @@ func (app *Application) OnHandler(c *gin.Context) {
 	}
 
 	errors = app.Wemo.TurnOnEverything(c.Request.Context())
-	log.Printf("%+v", errors)
-
 	if len(errors) != 0 {
+		log.Printf("%+v", errors)
+		c.JSON(500, gin.H{
+			"errors": errors,
+		})
+
+		return
+	}
+
+	errors = app.Tasmota.TurnOnEverything(c.Request.Context())
+	if len(errors) != 0 {
+		log.Printf("%+v", errors)
 		c.JSON(500, gin.H{
 			"errors": errors,
 		})
@@ -133,9 +150,19 @@ func (app *Application) OffHandler(c *gin.Context) {
 	}
 
 	errors = app.Wemo.TurnOffEverything(c.Request.Context())
-	log.Printf("%+v", errors)
-
 	if len(errors) != 0 {
+		log.Printf("%+v", errors)
+		c.JSON(500, gin.H{
+			"errors": errors,
+		})
+
+		return
+	}
+
+	errors = app.Tasmota.TurnOffEverything(c.Request.Context())
+	if len(errors) != 0 {
+		log.Printf("%+v", errors)
+
 		c.JSON(500, gin.H{
 			"errors": errors,
 		})
