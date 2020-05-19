@@ -3,6 +3,7 @@ package outlets
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -63,6 +64,18 @@ func (t *TasmotaMQTT) TurnOnEverything(ctx context.Context) error {
 func (t *TasmotaMQTT) TurnOffEverything(ctx context.Context) error {
 	if token := t.Client.Publish(t.Topic, 0, false, "off"); token.Wait() && token.Error() != nil {
 		return errors.WithMessage(token.Error(), "failed to send power off MQTT message")
+	}
+	return nil
+}
+
+// SetDevicePowerState sends a MQTT message to a device, setting its power state
+func (t *TasmotaMQTT) SetDevicePowerState(ctx context.Context, deviceName, powerState string) error {
+	topic := fmt.Sprintf("cmnd/%s/power", deviceName)
+	if token := t.Client.Publish(topic, 0, false, powerState); token.Wait() && token.Error() != nil {
+		return errors.WithMessage(
+			token.Error(),
+			fmt.Sprintf("failed to send MQTT message to device (%s) power state: (%s)", deviceName, powerState),
+		)
 	}
 	return nil
 }

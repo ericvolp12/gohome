@@ -9,6 +9,7 @@ import (
 	"github.com/ericvolp12/gohome/internal/lights"
 	"github.com/ericvolp12/gohome/internal/outlets"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
 
 // Application stores the mid-level interfaces for go_home
@@ -19,9 +20,15 @@ type Application struct {
 	APIKey  string
 }
 
-// Request is a valid POST request to this API
-type Request struct {
+// AuthenticatedRequest is a valid, authenticated POST request to this API
+type AuthenticatedRequest struct {
 	APIKey string `json:"apiKey"`
+}
+
+// PowerStateRequest is a valid POST request to this API to set a device state
+type PowerStateRequest struct {
+	Device     string `json:"device"`
+	PowerState string `json:"powerState"`
 }
 
 func main() {
@@ -61,32 +68,42 @@ func main() {
 
 	r := gin.Default()
 
+	r.Use(app.Auth())
+
 	r.POST("/on", app.OnHandler)
 
 	r.POST("/off", app.OffHandler)
 
+	r.POST("/setState", app.SetStateHandler)
+
 	r.Run() // listen and serve on 0.0.0.0:8053
+}
+
+// Auth is a simple authentication middleware for gohome
+func (app *Application) Auth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req AuthenticatedRequest
+		err := c.ShouldBindBodyWith(&req, binding.JSON)
+		if err != nil {
+			c.AbortWithStatusJSON(400, gin.H{
+				"errors": "bad request, missing apiKey",
+			})
+			return
+		}
+
+		if req.APIKey != app.APIKey {
+			c.AbortWithStatusJSON(401, gin.H{
+				"errors": "invalid apiKey",
+			})
+			return
+		}
+		c.Next()
+		return
+	}
 }
 
 // OnHandler handles turning things on
 func (app *Application) OnHandler(c *gin.Context) {
-	var req Request
-
-	err := c.BindJSON(&req)
-	if err != nil {
-		c.JSON(400, gin.H{
-			"errors": "bad request, missing API key",
-		})
-		return
-	}
-
-	if req.APIKey != app.APIKey {
-		c.JSON(401, gin.H{
-			"errors": "invalid API key",
-		})
-		return
-	}
-
 	errors := app.Hue.TurnOnEverything(c.Request.Context())
 	if len(errors) != 0 {
 		c.JSON(500, gin.H{
@@ -106,7 +123,7 @@ func (app *Application) OnHandler(c *gin.Context) {
 		return
 	}
 
-	err = app.Tasmota.TurnOnEverything(c.Request.Context())
+	err := app.Tasmota.TurnOnEverything(c.Request.Context())
 	if err != nil {
 		log.Printf("%+v", err)
 		c.JSON(500, gin.H{
@@ -121,25 +138,34 @@ func (app *Application) OnHandler(c *gin.Context) {
 	})
 }
 
+// SetStateHandler sets the state of a specific MQTT device
+func (app *Application) SetStateHandler(c *gin.Context) {
+	var req PowerStateRequest
+	err := c.ShouldBindBodyWith(&req, binding.JSON)
+	if err != nil || req.Device == "" || req.PowerState == "" {
+		c.JSON(400, gin.H{
+			"errorMessage": "bad request, make sure to send device, and powerState in the body",
+		})
+		return
+	}
+
+	err = app.Tasmota.SetDevicePowerState(c.Request.Context(), req.Device, req.PowerState)
+	if err != nil {
+		log.Printf("%+v", err)
+		c.JSON(500, gin.H{
+			"error": err,
+		})
+
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": fmt.Sprintf("successfully set device (%s) power state to (%s)", req.Device, req.PowerState),
+	})
+}
+
 // OffHandler handles turning things off
 func (app *Application) OffHandler(c *gin.Context) {
-	var req Request
-
-	err := c.BindJSON(&req)
-	if err != nil {
-		c.JSON(400, gin.H{
-			"errors": "bad request, missing API key",
-		})
-		return
-	}
-
-	if req.APIKey != app.APIKey {
-		c.JSON(401, gin.H{
-			"errors": "invalid API key",
-		})
-		return
-	}
-
 	errors := app.Hue.TurnOffEverything(c.Request.Context())
 	if len(errors) != 0 {
 		c.JSON(500, gin.H{
@@ -159,7 +185,7 @@ func (app *Application) OffHandler(c *gin.Context) {
 		return
 	}
 
-	err = app.Tasmota.TurnOffEverything(c.Request.Context())
+	err := app.Tasmota.TurnOffEverything(c.Request.Context())
 	if err != nil {
 		log.Printf("%+v", err)
 		c.JSON(500, gin.H{
